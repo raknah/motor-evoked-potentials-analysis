@@ -24,7 +24,7 @@ print(f"processing recording: {datfile}")
 particulars_path = folder_path / "session_particulars.txt"
 
 # ----------------- your settings -----------------
-FS = 30000
+FS = 1000
 NCH = 139
 DTYPE = np.int16
 
