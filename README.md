@@ -1,196 +1,107 @@
-# Neuroelectrophysiology Framework 
+# Neuroelectrophysiology
 
-A comprehensive, polyglot toolkit for extracting, processing, and analyzing neuroelectrophysiology data from Open Ephys recordings. This repository provides both **Python** and **Julia** implementations for maximum flexibility.
+Analysis of Open Ephys recordings — LFP, MEPs, EEG, and spike-sorted data — in Python and
+Julia, sharing one session object and one file format.
 
-## Purpose
+## Layout
 
-This framework is designed for:
-- **Motor Evoked Potential (MEP)** analysis and characterization
-- **EEG/MEG signal processing** with advanced preprocessing pipelines
-- **Cross-language compatibility** between Python and Julia ecosystems
-- **High-performance analysis** leveraging Julia's speed and Python's ecosystem
-- **Reproducible research** with version-controlled analysis pipelines
+```
+modules/
+  ephyslink/          Python: the Session object and its HDF5 format
+  EphysLink.jl/       Julia: the same object, the same format
+  ephyslink/FORMAT.md the contract both implementations follow
 
-## Key Features
+scripts/              shared analysis code, reusable on any dataset
+  preprocessing.py      filtering, re-referencing, epoching, artifact rejection
+  spiketrains.py        per-unit spike access, PSTH windowing primitives
+  psth.py               peri-stimulus histograms, per-trial standardisation
+  correlograms.py       autocorrelograms
+  contamination.py      Kilosort ContamPct, Hill f_p
+  waveforms.py          waveform shape, burst/theta index, cell type
+  entrainment.py        phase locking, vector strength, PPC, modulation depth
+  responders.py         which units changed rate
+  statstools.py         FDR, paired tests, permutation
+  plotstyle.py          shared figure style
+  simple_extract.py     batch: Open Ephys → preprocessed session files
 
-### Python Module (`openephysextract`)
-- **Open Ephys Integration**: Direct extraction from Open Ephys recording sessions
-- **GPU-Accelerated Processing**: PyTorch-based preprocessing pipeline with CUDA support
-- **Advanced Preprocessing**: ASR, ICA, filtering, epoching, artifact rejection
-- **Interactive Visualization**: Dash-based web interface for data exploration
-
-### Julia Module (`neuroephys4julia`)
-- **High-Performance Loading**: Optimized HDF5 reading with proper memory layout
-- **Type-Stable Operations**: Full type annotations for maximum Julia performance
-- **Cross-Language Compatibility**: Seamlessly loads Python-generated HDF5 files
-- **Memory Efficient**: Float32 arrays and column-major optimization
-- **Functional Interface**: Immutable operations with convenient accessors
-
-### Shared Data Format
-- **HDF5 Standard**: Universal format readable by both languages
-- **Rich Metadata**: JSON-encoded processing history, statistics, and annotations
-- **Flexible Schema**: Supports raw, preprocessed, and epoched data arrays
-- **Version Controlled**: Schema versioning for backward compatibility
-
-## Installation
-
-### Julia Environment
-```julia
-# From the repository root
-julia --project=.
-]activate .
-]instantiate
+projects/<name>/      one directory per study
+  scripts/              that study's specifics, prefixed with the project name
+  notebooks/            the worked analysis
+  log/                  decisions, errors found and fixed, open questions
 ```
 
-### Python Environment
+The split is by **reusability**. A PSTH is a PSTH, so `scripts/psth.py` is shared. A
+cortex/hippocampus boundary defined by a theta channel belongs to one experiment, so
+`projects/EXELU-spikes/scripts/EXELU_regions.py` is not.
+
+Nothing here is an installable package. Everything is plain `.py` and `.jl` files you can
+open and read. Imports resolve via `sys.path`, set up by the project's `*_paths.py`.
+
+## The session object
+
+One HDF5 file holds a recording and everything an analysis attaches to it, readable and
+writable from both languages with the same axis order.
+
+```python
+from ephyslink import load_kilosort, Session
+
+session = load_kilosort("/data/2026-04-14_11-46-55")
+session.add_table("units", unit_table)
+session.add_array("psth", matrix, dims=["unit", "bin"])
+session.log("responder test", alpha=0.05)
+session.save("analysis/2026-04-14.h5")
+```
+
+```julia
+using EphysLink
+
+s = read_session("analysis/2026-04-14.h5")
+s.arrays["psth"]              # same axis order as Python
+axis(s, "psth", "unit")       # 1-based position of a named axis
+add_array!(s, "spectrum", S, ["unit", "frequency"])
+write_session("analysis/2026-04-14.h5", s)
+```
+
+Two types: `SessionOE` for continuous data, `SessionKS` for spike-sorted output. Same file
+format, distinguished by an attribute.
+
+**Axis order is never guessed.** h5py works in C order and HDF5.jl in Fortran order, so the
+same bytes appear with reversed axes — deterministically, with no need to inspect the data.
+Each reader reverses once, and every array carries a `dims` attribute naming its axes. See
+`modules/ephyslink/FORMAT.md` for the full contract.
+
+## Setup
+
 ```bash
-# Install the openephysextract package
-cd modules/openephysextract
-pip install -e .
-
-# Or with conda
-conda env create -f environment.yml
-conda activate neuroelectrophysiology
+pip install numpy scipy pandas matplotlib h5py
+julia --project=modules/EphysLink.jl -e 'using Pkg; Pkg.instantiate()'
 ```
 
-## 🔬 Quick Start
+Point Julia at the module with `--project=modules/EphysLink.jl`, or
+`push!(LOAD_PATH, "modules/EphysLink.jl/src")`.
 
-### Loading Data in Julia
-```julia
-using Pkg; Pkg.activate(".")
-include("modules/sessionIO/SessionIO.jl")
+## Tests
 
-# Load a session
-session = from_hdf5("data/2023-08-25_14-20-15.h5")
+Run these after changing anything in `modules/` or `scripts/`:
 
-# Access data
-println("Session: $(session.session)")
-println("Shape: $(size(session))")
-println("Duration: $(duration(session)) seconds")
+```bash
+python modules/ephyslink/selftest.py            # session I/O, round-trip, guards
+python scripts/selftest_preprocessing.py        # every preprocessing step vs a known answer
 
-# Index into epoched data
-first_epoch = session[:, :, 1]  # All samples, all channels, first epoch
+# cross-language, run in order
+python modules/ephyslink/selftest.py --write-fixture /tmp/fixture_py.h5
+julia --project=modules/EphysLink.jl modules/EphysLink.jl/test/roundtrip.jl /tmp/fixture_py.h5
+python modules/ephyslink/selftest.py --check-fixture /tmp/fixture_py_jl.h5
 ```
 
-### Processing Data in Python
-```python
-from modules.openephysextract import Session, Preprocessor
-from modules.openephysextract import FilterStep, EpochStep
+The cross-language test is the one that matters. A change to one language's reader that is
+not mirrored in the other is the failure mode this design exists to prevent.
 
-# Load raw Open Ephys data
-session = Session.from_open_ephys("path/to/recording")
+## Projects
 
-# Create preprocessing pipeline
-preprocessor = Preprocessor([
-    FilterStep(lowcut=1.0, highcut=100.0),
-    EpochStep(pre_stimulus=0.1, post_stimulus=0.5)
-])
-
-# Process and save
-session = preprocessor.apply(session)
-session.to_hdf5("processed_session.h5")
-```
-
-### Cross-Language Workflow (E.g)
-```python
-# Python: Extract
-extractor = Extractor(
-    source = source,
-    experiment = '5xFAD Resting State',
-    sampling_rate = 30000,
-    output = local_path,
-    notes = notes,
-    channels = [3, 4, 5, 6, 7, 8]
-)
-extracted = extractor.extractify()
-
-# Python: Preprocess
-preprocessor = Preprocessor(
-    steps=steps, # [RemoveBadStep(),FilterStep(),...,DownsampleStep()]
-    device='mps',
-    log=False,
-    verbose=False
-)
-preprocessed = preprocessor.preprocess(extracted)
-
-# Python: Export to HDF5
-for session in preprocessed:
-  session_name = session.session
-  outpath = f'{session_name}-preprocessed.h5')
-  session.to_hdf5(outpath))
-
-```
-
-```julia
-# Julia: Load and analyze
-session = from_hdf5("SESSION_NAME-preprocessed.h5")
-
-# raw plot
-plot_raw_eeg(session) 
-
-# spectrogram
-ts, freqs, power = myspectrogram(session)
-fig = plot_spectrogram(ts, freqs, power;
-    mode = :aggregate,
-    normalize_per_freq=true,
-    prange=(0.05, 0.95),
-    interpolate=true,
-    scale = :none,
-    show = false
-)
-fig
-
-# bandpower
-features = bandpower(session)
-scaled_features = logistic_scaler(features)
-
-```
-
-## Data Format Specification
-
-### HDF5 Structure
-```
-session.h5
-├── /raw                    # (samples, channels) - Raw continuous data
-├── /preprocessed           # (samples, channels) - Filtered/cleaned data  
-├── /data                   # (samples_per_epoch, channels, epochs) - Epoched data
-└── attributes:
-    ├── session             # Session identifier (string)
-    ├── experiment          # Experiment name (string)
-    ├── sampling_rate       # Sampling frequency (int)
-    ├── ch_names           # Channel names (JSON array)
-    ├── history            # Processing steps (JSON array)
-    ├── stats              # Analysis statistics (JSON object)
-    └── events             # Event annotations (JSON array)
-```
-
-### Metadata Schema
-```json
-{
-  "session": "2023-08-25_14-20-15",
-  "experiment": "5xFAD Resting State",
-  "sampling_rate": 30000,
-  "ch_names": ["EMG1", "EMG2", "EEG1", "EEG2"],
-  "history": [
-    {"step": "filter", "params": {"lowcut": 1, "highcut": 100}, "time": "2023-08-25T14:21:00"},
-    {"step": "epoch", "params": {"pre": 0.1, "post": 0.5}, "time": "2023-08-25T14:22:00"}
-  ],
-  "stats": {
-    "epoch": {"n_epochs": 100, "rejected": 5},
-    "filter": {"lowcut": 1.0, "highcut": 100.0}
-  }
-}
-```
-
-
-## Acknowledgments
-
-- **Dr Nikolas Perentos**: For introducing me to neuroelectrophysiology and guiding me through the initial stages of this project
-- **Open Ephys**: For the excellent open-source acquisition system
-- **Julia Community**: For the high-performance scientific computing ecosystem  
-- **Python Scientific Stack**: NumPy, SciPy, and the broader PyData ecosystem
-- **HDF5 Group**: For the universal scientific data format
-
----
-
-
+| project | what it is |
+|---|---|
+| `EXELU-spikes` | 40 Hz visual flicker, spike-sorted probe from visual cortex to dentate gyrus, 5xFAD and WT. See its `log/` |
+| `5xFAD-Resting-State` | resting-state EEG |
+| `5xFAD-MEPs` | motor evoked potentials |
+| `EXELU` | the MATLAB acquisition side |
