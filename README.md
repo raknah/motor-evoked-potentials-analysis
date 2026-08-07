@@ -5,11 +5,15 @@ Julia, sharing one session object and one file format.
 
 ## Layout
 
+**New here? Start with [`modules/QUICKSTART.md`](modules/QUICKSTART.md)** — what the session
+object is, how to use it from either language, and which language to reach for when.
+
 ```
 modules/
+  QUICKSTART.md       start here
   ephyslink/          Python: the Session object and its HDF5 format
   EphysLink.jl/       Julia: the same object, the same format
-  ephyslink/FORMAT.md the contract both implementations follow
+  FORMAT.md           the contract both implementations follow
 
 scripts/              shared analysis code, reusable on any dataset
   preprocessing.py      filtering, re-referencing, epoching, artifact rejection
@@ -68,7 +72,7 @@ format, distinguished by an attribute.
 **Axis order is never guessed.** h5py works in C order and HDF5.jl in Fortran order, so the
 same bytes appear with reversed axes — deterministically, with no need to inspect the data.
 Each reader reverses once, and every array carries a `dims` attribute naming its axes. See
-`modules/ephyslink/FORMAT.md` for the full contract.
+`modules/FORMAT.md` for the full contract.
 
 ## Setup
 
@@ -82,20 +86,40 @@ Point Julia at the module with `--project=modules/EphysLink.jl`, or
 
 ## Tests
 
-Run these after changing anything in `modules/` or `scripts/`:
+One command. It runs the Python suites, then drives Julia itself — nothing to chain by hand.
 
 ```bash
-python modules/ephyslink/selftest.py            # session I/O, round-trip, guards
-python scripts/selftest_preprocessing.py        # every preprocessing step vs a known answer
-
-# cross-language, run in order
-python modules/ephyslink/selftest.py --write-fixture /tmp/fixture_py.h5
-julia --project=modules/EphysLink.jl modules/EphysLink.jl/test/roundtrip.jl /tmp/fixture_py.h5
-python modules/ephyslink/selftest.py --check-fixture /tmp/fixture_py_jl.h5
+python check.py
 ```
 
-The cross-language test is the one that matters. A change to one language's reader that is
-not mirrored in the other is the failure mode this design exists to prevent.
+Exit code 0 means every check passed. `--quick` skips the real-data checks; `--verbose` prints
+every individual check rather than only failures. If Julia is not on your PATH, set
+`JULIA=/path/to/julia`.
+
+What it covers:
+
+| section | what it proves |
+|---|---|
+| 1 Python round-trip | every rank 1–5, square and singleton shapes, a zero-length axis, all ten dtypes, unicode, NaN, empty tables and events |
+| 2 On-disk contract | opens the file with raw h5py and checks it against `FORMAT.md` — catches a file that is wrong even when both readers agree |
+| 3 Guards | wrong axis count, missing dims, transposed `continuous`, string arrays, legacy files — all refused |
+| 4 Results export | derived tables kept, raw arrays dropped, stacking across sessions |
+| 5 Julia | Julia's in-memory view compared **element by element in a defined order**, both layout modes, files Julia wrote read back in Python, and an array *built* in Julia |
+| 5b Every variant | the tree of layout-mode sequences to depth three — 14 Julia-written files, a Python hop between each round, all compared against the **original** |
+| 5c Performance | measures in real Julia that the default layout is faster **and** that the same code gives the same answers in both layouts |
+| 6 Real data | a real Kilosort session round-trips, if the recordings are on this machine |
+
+Sections 5b and 5c are the ones that matter.
+
+**5b** exists because a single round trip passes even when both sides are wrong in cancelling
+ways. Walking every sequence of layout modes, comparing each file back to the original at every
+depth, does not.
+
+**5c** exists because "optimised for Julia" is a claim, and a claim should be measured on the
+machine it is claimed about. It reports the actual timings — per-channel reduction under each
+layout, the read, the `permutedims` copy — and fails if the default is slower. It also runs the
+*same* per-channel loop under both layouts and fails if the answers differ, which is what
+"seamless" has to mean.
 
 ## Projects
 
