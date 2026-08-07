@@ -1,0 +1,32 @@
+Animal_ID,genotype,filebase,map,settle_time,penetration angle,auto ICs,selected Ics,nICs,comments,anat_layers,nKS,CA1 chan,Notes
+XU01,bl/6,2025-08-21_12-00-48,H3+EEG+ADC,20,0,,,,excellent recording very stable but headstage had digital noise on 32-end chans,CTX,,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU01,bl/6,2025-08-24_10-13-19,H3+EEG+ADC,20,0,,,,infected cortex,"CTX,CA1",,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU06,bl/6,2025-09-16_12-50-07,H13+EEG+ADC,20,0,,,,"no gummy eye, stable rec, got dentate too, top 16ch did not reach",??,,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU05,bl/6,2025-09-18_09-59-40,H13+EEG+ADC,20,0,,,,"no gummy eye, stable rec, got dentate too, full depth 2.4mm","CTX,CA1,DG?",,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU06,bl/6,2025-09-18_20-10-12,H13+EEG+ADC,20,0,,,,"no gummy eye, stable rec, got dentate too, full depth 2.4mm","CTX,CA1,DG,Thl",,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU04,bl/6,2025-09-20_10-49-09,H13+EEG+ADC,26,0,,,,recording was not stopped on time so had to limi KS to a ,"CTX,CA1,DG",,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU03,bl/6,2025-09-20_13-33-23,H13+EEG+ADC,25,0,,,,all good ,"CTX,CA1",,,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+XU02,bl/6,2025-09-20_16-51-22,H13+EEG+ADC,25,0,,,,could have been a bit too deep with spikes at the very top,"CTX,CA1,CA1/3",,55,flicker here was inadvertently 20 Hz due to hardware issues which were discovered by recording the monitor with a 522fps camera. Angle of penetration was perpendicular
+,,,,,,,,,,,,,
+XU16,bl/6,2026-02-15_11-44-12,H13+EEG+ADC,,20,,,,contrast and sf protocol,,,,
+XU16,bl/6,2026-02-15_12-15-28,H13+EEG+ADC,,20,,,,"60 trials, on new protocol, exposures of 4 seconds, ",,,,
+XU16,bl/6,2026-02-17_18-29-29,H13+EEG+ADC,,20,,,,baseline only,,,,
+XU16,bl/6,2026-02-17_18-37-49,H13+EEG+ADC,,20,,,,closed loop,,,,
+XU16,bl/6,2026-02-17_18-51-10,H13+EEG+ADC,,20,,,,full protocol second time on this animal,,,,
+,,,,,,,,,,,,,
+XU23,5xFAD,2026-04-07_13-43-11,H13+EEG+ADC,15,20,too aggressive,not needed,40,very bloody craniotomy bad ctx signal and likely off target,?,,,4 conditions 60 trials each 4 minute baselines with photodiode as ground truth
+XU22,WT,2026-04-07_15-45-06,H13+EEG+ADC,15,20,too aggressive,not needed,40,good recording on target,"CTX,CA1,DG?",,,4 conditions 60 trials each 4 minute baselines with photodiode as ground truth
+XU21,WT,2026-04-07_17-36-06,H13+EEG+ADC,15,20,ok,subset,40,good recording on target,"CTX,CA1,DG?",,,4 conditions 60 trials each 4 minute baselines with photodiode as ground truth
+XU21,WT,2026-04-08_12-19-39,H13+EEG+ADC,15,20,ok,none needed,40,good recording on target second for this animal with dii anterior to last location,"CTX,CA1,DG",,,
+XU23,5xFAD,2026-04-08_14-12-45,H13+EEG+ADC,15,20,aggressive at the CTX,all ics + one extra,20,many channels n/c but good otherwise location wise (old electrode),"CTX,CA1,DG",,,
+XU22,WT,2026-04-08_16-21-15,H13+EEG+ADC,15,20,contains artefact channel?,all ics,20,good recording ,"CTX,CA1,DGx2",,,
+XU18,5xFAD,2026-04-09_14-54-02,H13+EEG+ADC,15,20,noisy,all ics,20,good recording but right after surgery,"CTX,CA1,DG",,,
+XU19,5xFAD,2026-04-09_20-18-35,H13+EEG+ADC,15,20,good,all Ics,40,good recording. same day as surgery after return to cage due to bleeding visible,"CTX,CA1,DG",,,
+XU17,WT,2026-04-10_11-12-44,H13+EEG+ADC,15,20,good,subset,40,good recording but prob a bit too lateral good craniotomy. ,?,,,
+XU18,5xFAD,2026-04-10_13-28-41,H13+EEG+ADC,15,20,good,subset,40,,,,,
+XU17,WT,2026-04-10_16-41-14,H13+EEG+ADC,15,20,good,?,40,,,,,
+,,,,,,,,,,,,,
+XU24,WT,2026-04-13_12-50-34,H13+EEG+ADC,15,20,too aggressive,flat only,40,good rec after straight after craniotomy,"CTX,CA1,DG",,,
+XU20,5xFAD,2026-04-13_16-05-36,H13+EEG+ADC,15,20,need to inspect,all Ics,40,good recording straight after craniotomy,"CTX,CA1,DG",,,
+XU24,WT,2026-04-14_09-31-38,H13+EEG+ADC,15,20,good,subset,40,good recording day after craniotomylateral  to the artery with dii,"CTX,CA1,DG",,,
+XU20 ,5xFAD,2026-04-14_11-46-55,H13+EEG+ADC,15,20,good,none needed,40,good rec with dil small units but stable,,45,,
