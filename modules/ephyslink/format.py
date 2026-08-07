@@ -1,5 +1,5 @@
 """
-Reading and writing the ephyslink HDF5 file. The format contract is `FORMAT.md`.
+Reading and writing the ephyslink HDF5 file. The format contract is `../FORMAT.md`.
 
 Only this module knows what the file looks like. `session.py` knows what a session *is*, the
 loaders know what the instruments produce, and neither of them opens an HDF5 file.
@@ -46,8 +46,31 @@ class _JsonEncoder(json.JSONEncoder):
         return super().default(o)
 
 
+def _finite_only(obj: Any) -> Any:
+    """Replace NaN and +/-Inf with null, recursively, before serialising.
+
+    `json.dumps` happily emits bare `NaN` and `Infinity`. **Those are not valid JSON** — they
+    are a Python extension, and a strict parser (Julia's JSON3 among them) rejects the whole
+    document. The old code would then have fallen back to an empty dict and the metadata would
+    have vanished on the Julia side *silently*.
+
+    NaN reaching this point means "not computed" — an empty group's median, a test that could
+    not run — and JSON `null` carries exactly that meaning in both languages. The conversion is
+    therefore lossless in intent even though it is lossy in type.
+    """
+    if isinstance(obj, dict):
+        return {k: _finite_only(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_finite_only(v) for v in obj]
+    if isinstance(obj, (float, np.floating)) and not np.isfinite(obj):
+        return None
+    return obj
+
+
 def _dumps(obj: Any) -> str:
-    return json.dumps(obj, cls=_JsonEncoder, allow_nan=True)
+    # allow_nan=False so that anything _finite_only missed raises here rather than producing a
+    # file that Python reads and Julia silently cannot
+    return json.dumps(_finite_only(obj), cls=_JsonEncoder, allow_nan=False)
 
 
 def _loads(text: Any, fallback):
@@ -90,10 +113,23 @@ def write_session(path: str | Path, session, compression: str | None = "gzip") -
             group = f.create_group("arrays")
             for name, array in session.arrays.items():
                 values = np.ascontiguousarray(array)
+                # A bool array becomes an HDF5 *enum*, which HDF5.jl does not read back as
+                # Bool. Only plain integer and float types are portable, so bools are stored
+                # as int8 with the original dtype recorded for Python to restore.
+                original_dtype = None
+                if values.dtype == bool:
+                    values, original_dtype = values.astype(np.int8), "bool"
+                if values.dtype.kind in "OUS":
+                    raise TypeError(
+                        f"array '{name}' has dtype {values.dtype}; only numeric arrays can be "
+                        "stored. Put strings in a table column instead."
+                    )
                 # compression on a scalar or empty dataset is an error in h5py
                 use = compression if values.ndim > 0 and values.size > 0 else None
                 dataset = group.create_dataset(name, data=values, compression=use)
                 dataset.attrs["dims"] = _axis_names(session, name, values.ndim)
+                if original_dtype:
+                    dataset.attrs["original_dtype"] = original_dtype
                 for key in ("units", "description"):
                     value = session.array_meta.get(name, {}).get(key)
                     if value is not None:
@@ -187,7 +223,10 @@ def read_session_dict(path: str | Path) -> dict:
         }
 
         for name, dataset in f.get("arrays", {}).items():
-            result["arrays"][name] = dataset[()]
+            values = dataset[()]
+            if _as_str(dataset.attrs.get("original_dtype", "")) == "bool":
+                values = values.astype(bool)
+            result["arrays"][name] = values
             result["dims"][name] = [_as_str(d) for d in dataset.attrs.get("dims", [])]
             extra = {k: _as_str(dataset.attrs[k]) for k in ("units", "description")
                      if k in dataset.attrs}

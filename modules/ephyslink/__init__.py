@@ -27,7 +27,9 @@ Two typed views over one file format:
 attached to the session and travels with it, which is the point — the alternative is a
 directory of loose `.npy` files whose relationship to each other is in your head.
 
-The file format is specified in `FORMAT.md`, and the Julia implementation is
+New to this? `modules/QUICKSTART.md` is the tour.
+
+The file format is specified in `../FORMAT.md`, and the Julia implementation is
 `modules/EphysLink.jl/`. If the two ever disagree, `FORMAT.md` is right and both are wrong.
 Run `selftest.py` and `../EphysLink.jl/test/roundtrip.jl` after touching either.
 """

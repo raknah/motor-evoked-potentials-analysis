@@ -170,6 +170,14 @@ class Session:
             raise ValueError(
                 f"array '{name}' has {values.ndim} axes but {len(dims)} names were given: {dims}"
             )
+        if values.dtype.kind not in "fiub":
+            # Caught here rather than at save time, so the error points at the line that made
+            # the mistake. Strings and object arrays have no portable HDF5 representation —
+            # h5py and HDF5.jl disagree — so they belong in a table column.
+            raise TypeError(
+                f"array '{name}' has dtype {values.dtype}; arrays must be numeric or boolean. "
+                "Strings and mixed types belong in a table: session.add_table(...)."
+            )
         self.arrays[name] = values
         self.dims[name] = dims
         extra = {k: v for k, v in (("units", units), ("description", description)) if v}

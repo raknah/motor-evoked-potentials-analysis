@@ -33,6 +33,7 @@ from ephyslink import Session, SessionKS, SessionOE, describe_file  # noqa: E402
 # Non-square on every axis, so a transpose changes the shape and cannot pass unnoticed.
 SHAPE_2D = (4, 7)
 SHAPE_3D = (3, 5, 11)
+SHAPE_4D = (2, 3, 5, 7)
 
 
 def build_fixture() -> SessionKS:
@@ -48,6 +49,9 @@ def build_fixture() -> SessionKS:
                       dims=["channel", "sample"], units="µV", description="rank-2 probe")
     session.add_array("matrix3d", np.arange(np.prod(SHAPE_3D), dtype=np.float32).reshape(SHAPE_3D),
                       dims=["channel", "sample", "epoch"])
+    # rank 4 as well: the reversal is general, so the test of it should be too
+    session.add_array("matrix4d", np.arange(np.prod(SHAPE_4D), dtype=np.float32).reshape(SHAPE_4D),
+                      dims=["channel", "sample", "epoch", "band"])
 
     session.add_table("clusters", pd.DataFrame({
         "cluster_id": np.arange(9, dtype=np.int32),
@@ -220,6 +224,73 @@ def results_export() -> None:
     print("PASS  results export: derived tables kept, source arrays dropped, summary stacked")
 
 
+def julia_layout_spec() -> None:
+    """Exercise the dimension rule against a numpy model of what HDF5.jl does.
+
+    This is a **specification** test, not a test of `format.jl` — it cannot catch a typo in the
+    Julia source. What it does catch is a change to the *rule* that is made on one side and not
+    the other, and it runs without Julia installed, so it runs everywhere.
+
+    The invariant, in one line: **`dims[i]` describes `size(A, i)` in whichever language is
+    holding the array.** Every path below must preserve it.
+    """
+    def hdf5jl_read(buffer, python_shape, dtype=np.float32):
+        """HDF5.jl: the same bytes, shape reversed, Fortran order."""
+        return np.frombuffer(buffer, dtype=dtype).reshape(python_shape[::-1], order="F")
+
+    def reverse_axes(a):
+        return a if a.ndim <= 1 else np.transpose(a, axes=range(a.ndim)[::-1])
+
+    def julia_read(buffer, python_shape, dims, native):
+        a = hdf5jl_read(buffer, python_shape)
+        return (a, list(reversed(dims))) if native else (reverse_axes(a), list(dims))
+
+    def julia_write(a, dims, native):
+        stored = a if native else reverse_axes(a)
+        return (np.asfortranarray(stored).tobytes(order="F"),
+                stored.shape[::-1],
+                list(reversed(dims)) if native else list(dims))
+
+    cases = [((4, 7), ["channel", "sample"]),
+             (SHAPE_3D, ["channel", "sample", "epoch"]),
+             (SHAPE_4D, ["channel", "sample", "epoch", "band"]),
+             ((500,), ["spike"])]
+
+    for shape, dims in cases:
+        python = np.arange(int(np.prod(shape)), dtype=np.float32).reshape(shape)
+        buffer = python.tobytes(order="C")
+
+        matched, matched_dims = julia_read(buffer, shape, dims, native=False)
+        assert matched.shape == shape and matched_dims == dims, f"matched read of {shape}"
+        assert np.array_equal(matched, python), f"matched read changed values, {shape}"
+
+        native, native_dims = julia_read(buffer, shape, dims, native=True)
+        assert native.shape == shape[::-1] and native_dims == dims[::-1], f"native read of {shape}"
+        for name in dims:
+            assert native.shape[native_dims.index(name)] == python.shape[dims.index(name)], (
+                f"native read broke the name-to-length pairing for '{name}' in {shape}"
+            )
+
+        for source, source_dims, flag in ((matched, matched_dims, False), (native, native_dims, True)):
+            buf, back_shape, back_dims = julia_write(source, source_dims, flag)
+            assert back_shape == shape and back_dims == dims, (
+                f"julia write (native={flag}) of {shape} gave python {back_shape}, {back_dims}"
+            )
+            assert np.array_equal(
+                np.frombuffer(buf, np.float32).reshape(back_shape, order="C"), python
+            ), f"julia write (native={flag}) changed values, {shape}"
+
+    # the path nothing tested before: an array BUILT in Julia inside a native session
+    built = np.arange(int(np.prod(SHAPE_3D)), dtype=np.float32).reshape(SHAPE_3D, order="F")
+    buf, python_shape, labels = julia_write(built, ["p", "q", "r"], native=True)
+    assert python_shape == SHAPE_3D[::-1] and labels == ["r", "q", "p"]
+    again, again_dims = julia_read(buf, python_shape, labels, native=True)
+    assert np.array_equal(again, built) and again_dims == ["p", "q", "r"]
+
+    print("PASS  dimension rule holds for ranks 1-4, both directions, both layout modes,")
+    print("      including an array built in Julia inside a natively-read session")
+
+
 def legacy_rejected() -> None:
     import h5py
     with tempfile.TemporaryDirectory() as tmp:
@@ -260,6 +331,7 @@ def main() -> int:
     guards()
     axis_lookup()
     results_export()
+    julia_layout_spec()
     legacy_rejected()
     print("\nAll Python-side checks passed. For the cross-language check, see the header.")
     return 0
