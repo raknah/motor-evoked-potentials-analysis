@@ -17,3 +17,9 @@ dist/
 # Cache directories
 /tmp/
 *.cache
+LocalPreferences.toml
+
+# images
+
+*.png
+!projects/EXELU-spikes/output/_across_sessions/*.png
